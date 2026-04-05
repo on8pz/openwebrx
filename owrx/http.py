@@ -26,6 +26,7 @@ from owrx.controllers.session import SessionController
 from owrx.controllers.profile import ProfileController
 from owrx.controllers.imageupload import ImageUploadController
 from owrx.controllers.robots import RobotsController
+from owrx.controllers.rotctl import RotCtlController
 from owrx.storage import Storage
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -97,6 +98,7 @@ class Router(object):
             RegexRoute("^/static/(.+)$", OwrxAssetsController),
             RegexRoute("^/compiled/(.+)$", CompiledAssetsController),
             RegexRoute("^/aprs-symbols/(.+)$", AprsSymbolsController),
+            StaticRoute("/ws/rotor", RotCtlController),
             StaticRoute("/ws/", WebSocketController),
             RegexRoute("^(/favicon.ico)$", OwrxAssetsController),
             StaticRoute("/map", MapController),

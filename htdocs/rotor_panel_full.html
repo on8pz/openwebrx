@@ -1,0 +1,184 @@
+<html>
+<body style="overflow: hidden;margin: 0;padding:0;">
+<!-- rotor_panel_full.html -->
+<div id="rotorPanel" style="max-width:400px;overflow: hidden;">
+  <h3 style="text-align:center;">Rotor Control</h3>
+
+  <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+    <div>
+      <div>Azimuth</div>
+      <div id="az" style="font-family:monospace;color:#00e5ff;background:#000;padding:6px;border-radius:4px;">0°</div>
+    </div>
+    <div>
+      <div>Elevation</div>
+      <div id="el" style="font-family:monospace;color:#00e5ff;background:#000;padding:6px;border-radius:4px;">0°</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:60px 60px 60px;grid-template-rows:60px 60px 60px;justify-content:center;gap:6px;margin-bottom:10px;">
+    <div></div>
+    <button id="btnUp">▲</button>
+    <div></div>
+
+    <button id="btnLeft">◀</button>
+    <div></div>
+    <button id="btnRight">▶</button>
+
+    <div></div>
+    <button id="btnDown">▼</button>
+    <div></div>
+  </div>
+
+  <div style="margin-bottom:8px;">
+    <label>Goto Locator:</label>
+    <input id="locatorInput" maxlength="6" placeholder="JO21EE" style="width:80px">
+    <button id="gotoLocBtn">GO</button>
+  </div>
+
+  <div style="margin-bottom:8px;">
+    <label>Goto AZ:</label>
+    <input type="number" id="gotoAzInput" style="width:60px">
+    <button id="gotoAzBtn">GO</button>
+  </div>
+
+  <div style="margin-bottom:8px;">
+    <label>Goto EL:</label>
+    <input type="number" id="gotoElInput" style="width:60px">
+    <button id="gotoElBtn">GO</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const WS_URL = "ws://" + location.host + "/ws/rotor";
+
+  const azDisplay = document.getElementById("az");
+  const elDisplay = document.getElementById("el");
+
+  const btnUp = document.getElementById("btnUp");
+  const btnDown = document.getElementById("btnDown");
+  const btnLeft = document.getElementById("btnLeft");
+  const btnRight = document.getElementById("btnRight");
+
+  const locatorInput = document.getElementById("locatorInput");
+  const gotoLocBtn = document.getElementById("gotoLocBtn");
+
+  const gotoAzInput = document.getElementById("gotoAzInput");
+  const gotoAzBtn = document.getElementById("gotoAzBtn");
+
+  const gotoElInput = document.getElementById("gotoElInput");
+  const gotoElBtn = document.getElementById("gotoElBtn");
+
+  const JOG_INTERVAL_MS = 150;
+  const LIMITS = { azMin:0, azMax:360, elMin:0, elMax:90 };
+  const STATION_LOCATOR = "JO21EE"; // set your QTH
+
+  let state = { az:0.0, el:0.0 };
+  let ws, jogTimer=null;
+
+  function connectWS(){
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = ()=>{
+      console.log("Connected to rotor WS");
+      pollPosition();
+      setInterval(pollPosition,1000);
+    };
+    ws.onmessage = e => parseMessage(e.data);
+    ws.onclose = ()=>{ console.warn("Rotor WS closed, retry in 3s"); setTimeout(connectWS,3000); };
+    ws.onerror = e=>{ console.error("Rotor WS error",e); ws.close(); };
+  }
+
+  function send(cmd){
+    if(ws && ws.readyState===WebSocket.OPEN) {
+      //console.log("sending", cmd); 
+      ws.send(cmd);
+    }
+  }
+
+  function pollPosition(){ send("ROTOR QUERY"); }
+
+  function moveTo(az, el){
+    az = Math.min(Math.max(az,LIMITS.azMin),LIMITS.azMax);
+    el = Math.min(Math.max(el,LIMITS.elMin),LIMITS.elMax);
+    send(`ROTOR POS ${az.toFixed(1)} ${el.toFixed(1)}`);
+  }
+  
+  function moveInDir(dir){
+    speed = 100;
+    send(`ROTOR MOVE ${dir} ${speed}`);
+  }
+
+  function stopRotor(){ send("ROTOR STOP"); }
+
+  function startJog(dir){
+    if(jogTimer) return;
+    jogTimer = setInterval(()=>moveInDir(dir),JOG_INTERVAL_MS);
+  }
+
+  function stopJog(){ clearInterval(jogTimer); jogTimer=null; stopRotor(); }
+
+  function parseMessage(msg){
+    if(!msg.startsWith("ROTOR-RESP ")) return;
+    const data = msg.slice(11).trim().split(" ");
+    if(data.length>=2 && data[0] == "RPRT") { 
+	    if (data[1] != "0") console.log("rotctl error", data);
+	    return;
+    }
+    //console.log(data);
+    if(data.length>=2){ state.az=parseFloat(data[0]); state.el=parseFloat(data[1]); updateDisplay(); }
+  }
+
+  function updateDisplay(){ azDisplay.textContent=state.az.toFixed(1)+"°"; elDisplay.textContent=state.el.toFixed(1)+"°"; }
+
+  // Maidenhead locator → lat/lon
+  function locatorToLatLon(loc){
+    loc=loc.toUpperCase();
+    if(loc.length!==6) return null;
+    let lon=(loc.charCodeAt(0)-65)*20-180;
+    let lat=(loc.charCodeAt(1)-65)*10-90;
+    lon+=parseInt(loc[2])*2; lat+=parseInt(loc[3]);
+    lon+=(loc.charCodeAt(4)-65)*5/60; lat+=(loc.charCodeAt(5)-65)*2.5/60;
+    return {lat,lon};
+  }
+
+  function bearing(from,to){
+    const r=Math.PI/180;
+    let φ1=from.lat*r, φ2=to.lat*r;
+    let Δλ=(to.lon-from.lon)*r;
+    let y=Math.sin(Δλ)*Math.cos(φ2);
+    let x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+    return (Math.atan2(y,x)/r+360)%360;
+  }
+
+  function gotoLocator(loc){
+    const from=locatorToLatLon(STATION_LOCATOR);
+    const to=locatorToLatLon(loc);
+    if(!from||!to) return;
+    const az=bearing(from,to);
+    moveTo(az,state.el);
+  }
+
+  // Bind buttons (press-and-hold)
+  ["mousedown","touchstart"].forEach(e=>btnUp.addEventListener(e,()=>startJog(2)));
+  ["mouseup","mouseleave","touchend","touchcancel"].forEach(e=>btnUp.addEventListener(e,stopJog));
+
+  ["mousedown","touchstart"].forEach(e=>btnDown.addEventListener(e,()=>startJog(4)));
+  ["mouseup","mouseleave","touchend","touchcancel"].forEach(e=>btnDown.addEventListener(e,stopJog));
+
+  ["mousedown","touchstart"].forEach(e=>btnLeft.addEventListener(e,()=>startJog(8)));
+  ["mouseup","mouseleave","touchend","touchcancel"].forEach(e=>btnLeft.addEventListener(e,stopJog));
+
+  ["mousedown","touchstart"].forEach(e=>btnRight.addEventListener(e,()=>startJog(16)));
+  ["mouseup","mouseleave","touchend","touchcancel"].forEach(e=>btnRight.addEventListener(e,stopJog));
+
+  // Goto buttons
+  gotoLocBtn.onclick=()=>gotoLocator(locatorInput.value.trim());
+  gotoAzBtn.onclick=()=>{ const az=parseFloat(gotoAzInput.value); if(!isNaN(az)) moveTo(az,state.el); };
+  gotoElBtn.onclick=()=>{ const el=parseFloat(gotoElInput.value); if(!isNaN(el)) moveTo(state.az,el); };
+
+  document.addEventListener("DOMContentLoaded",connectWS);
+})();
+</script>
+</body>
+</html>
