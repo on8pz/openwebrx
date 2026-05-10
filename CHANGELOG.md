@@ -1,10 +1,23 @@
+**1.2.113**
+- Greatly reduced memory footprint, eliminating leaks.
+- Now dropping unused modules and buffers immediately.
+- Fixed RigControl frequency at page load [Niccolo Izzo].
+- Fixed wrong audio rate when changing SDR source.
+- Fixed markers update thread hanging on exit.
+- Fixed ring buffers leaking from services.
+
+**1.2.112**
+- Fixed bookmarks sorting with older Python versions.
+- Improve JS plugin loader [Stanislav Lechev].
+
 **1.2.111**
 - Added support for the Amateur Repeater Directory (US only).
-- Added optional RepeaterBook access token setting.
 - Added selection of the actual PerseusSDR sample rates.
+- Added Brazilian CB bookmarks [xnetinho].
 - Sorted repeaters data to speed up bookmarks generation.
 - Sorted EIBI data to speed up bookmarks generation.
-- Now updating repeater list on weekly, not daily.
+- Now showing local time in the chat rather than UTC.
+- Now updating repeater list weekly, not daily.
 
 **1.2.110**
 - Added AIS reporting to VesselFinder [Ari Cooper Davis].
