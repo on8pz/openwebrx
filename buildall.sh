@@ -208,6 +208,8 @@ fi
 if [ "${BUILD_DIGIHAM:-}" == "y" ]; then
 	echo "##### Building DigiHAM... #####"
 	git clone -b master "$GIT_DIGIHAM"
+	# fix for building on trixie
+	sed -i 's/set(CMAKE_CXX_STANDARD 11)/set(CMAKE_CXX_STANDARD 17)/' digiham/CMakeLists.txt
 	pushd digiham
 	dpkg-buildpackage -us -uc
 	popd
